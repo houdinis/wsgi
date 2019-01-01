@@ -2,7 +2,7 @@ from wsgiref.simple_server import make_server
 from webob import Response, Request
 from webob.dec import wsgify
 from webob.exc import HTTPNotFound
-
+import re
 
 # application函数不用了, 用来和app函数对比
 # def application(environ: dict, start_response):
@@ -24,24 +24,24 @@ from webob.exc import HTTPNotFound
 
 
 class Application:
-    ROUTETABLE = {}
+    ROUTETABLE = []
 
     @classmethod  # 注册， 装饰器
-    def register(cls, path):
+    def register(cls, pattern):
         def wrapper(handler):
-            cls.ROUTETABLE[path] = handler
+            cls.ROUTETABLE.append((re.compile(pattern), handler)) #预编译对象, 处理函数
             return handler
         return wrapper
 
     @wsgify
     def __call__(self, request: Request) -> Response:
-        try:
-            return self.ROUTETABLE.get(request.path)(request)
-        except:
-            raise HTTPNotFound('<h1>你访问的页面被外星人劫持了</h1>')
+        for pattern, handler in self.ROUTETABLE:
+            if pattern.match(request.path):
+                return handler(request)
+        raise HTTPNotFound('<h1>你访问的页面被外星人劫持了</h1>')
 
 
-@Application.register('/')
+@Application.register('^/$')
 def index(request: Request):
     res = Response()
     res.status_code = 200
@@ -51,7 +51,7 @@ def index(request: Request):
     return res
 
 
-@Application.register('/python')
+@Application.register('^/python$')
 def index(request: Request):
     res = Response()
     res.status_code = 200
@@ -70,3 +70,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         server.shutdown()
         server.server_close()
+
+
